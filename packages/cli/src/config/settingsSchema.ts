@@ -2424,7 +2424,7 @@ const SETTINGS_SCHEMA = {
         requiresRestart: false,
         default: false,
         description:
-          'If true, disallows YOLO mode and "Always allow" options from being used.',
+          'If true, disallows YOLO mode (wildcard policies) and "Always allow" options from being used.',
         showInDialog: false,
         mergeStrategy: MergeStrategy.REPLACE,
       },
