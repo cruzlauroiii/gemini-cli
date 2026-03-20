@@ -34,6 +34,9 @@ describe('ToolConfirmationMessage', () => {
     confirm: mockConfirm,
     cancel: vi.fn(),
     isDiffingEnabled: false,
+    isExpanded: vi.fn().mockReturnValue(false),
+    toggleExpansion: vi.fn(),
+    toggleAllExpansion: vi.fn(),
   });
 
   const mockConfig = {
@@ -469,7 +472,11 @@ describe('ToolConfirmationMessage', () => {
         confirm: vi.fn(),
         cancel: vi.fn(),
         isDiffingEnabled: false,
-  });
+        isExpanded: vi.fn().mockReturnValue(false),
+        toggleExpansion: vi.fn(),
+        toggleAllExpansion: vi.fn(),
+      });
+
       const { lastFrame, waitUntilReady, unmount } = await renderWithProviders(
         <ToolConfirmationMessage
           callId="test-call-id"
@@ -496,7 +503,11 @@ describe('ToolConfirmationMessage', () => {
         confirm: vi.fn(),
         cancel: vi.fn(),
         isDiffingEnabled: false,
-  });
+        isExpanded: vi.fn().mockReturnValue(false),
+        toggleExpansion: vi.fn(),
+        toggleAllExpansion: vi.fn(),
+      });
+
       const { lastFrame, waitUntilReady, unmount } = await renderWithProviders(
         <ToolConfirmationMessage
           callId="test-call-id"
@@ -523,6 +534,9 @@ describe('ToolConfirmationMessage', () => {
         confirm: vi.fn(),
         cancel: vi.fn(),
         isDiffingEnabled: true,
+        isExpanded: vi.fn().mockReturnValue(false),
+        toggleExpansion: vi.fn(),
+        toggleAllExpansion: vi.fn(),
       });
 
       const { lastFrame, waitUntilReady, unmount } = await renderWithProviders(
@@ -666,7 +680,11 @@ describe('ToolConfirmationMessage', () => {
         confirm: mockConfirm,
         cancel: vi.fn(),
         isDiffingEnabled: false,
-  });
+        isExpanded: vi.fn().mockReturnValue(false),
+        toggleExpansion: vi.fn(),
+        toggleAllExpansion: vi.fn(),
+      });
+
       const confirmationDetails: SerializableConfirmationDetails = {
         type: 'info',
         title: 'Confirm Web Fetch',

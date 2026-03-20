@@ -732,6 +732,9 @@ export const renderWithProviders = async (
                         <ToolActionsProvider
                           config={finalConfig}
                           toolCalls={allToolCalls}
+                          isExpanded={vi.fn().mockReturnValue(false)}
+                          toggleExpansion={vi.fn()}
+                          toggleAllExpansion={vi.fn()}
                         >
                           <AskUserActionsProvider
                             request={null}
