@@ -3943,7 +3943,6 @@ describe('InputPrompt', () => {
       unmount();
     });
 
-
     it('should not show inverted cursor when shell is focused', async () => {
       props.isEmbeddedShellFocused = true;
       props.focus = false;
