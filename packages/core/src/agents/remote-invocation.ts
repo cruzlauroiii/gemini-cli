@@ -23,11 +23,9 @@ import type {
   SendMessageResult,
 } from './a2a-client-manager.js';
 import { extractIdsFromResponse, A2AResultReassembler } from './a2aUtils.js';
-import type { AuthenticationHandler } from '@a2a-js/sdk/client';
 import { debugLogger } from '../utils/debugLogger.js';
 import { safeJsonToMarkdown } from '../utils/markdownUtils.js';
 import type { AnsiOutput } from '../utils/terminalSerializer.js';
-import { A2AAuthProviderFactory } from './auth-provider/factory.js';
 import { A2AAgentError } from './a2a-errors.js';
 
 /**
@@ -50,7 +48,6 @@ export class RemoteAgentInvocation extends BaseToolInvocation<
   private taskId: string | undefined;
 
   private readonly clientManager: A2AClientManager;
-  private authHandler: AuthenticationHandler | undefined;
 
   constructor(
     private readonly definition: RemoteAgentDefinition,
@@ -86,29 +83,6 @@ export class RemoteAgentInvocation extends BaseToolInvocation<
     return `Calling remote agent ${this.definition.displayName ?? this.definition.name}`;
   }
 
-  private async getAuthHandler(): Promise<AuthenticationHandler | undefined> {
-    if (this.authHandler) {
-      return this.authHandler;
-    }
-
-    if (this.definition.auth) {
-      const provider = await A2AAuthProviderFactory.create({
-        authConfig: this.definition.auth,
-        agentName: this.definition.name,
-        targetUrl: this.definition.agentCardUrl,
-        agentCardUrl: this.definition.agentCardUrl,
-      });
-      if (!provider) {
-        throw new Error(
-          `Failed to create auth provider for agent '${this.definition.name}'`,
-        );
-      }
-      this.authHandler = provider;
-    }
-
-    return this.authHandler;
-  }
-
   protected override async getConfirmationDetails(
     _abortSignal: AbortSignal,
   ): Promise<ToolCallConfirmationDetails | false> {
@@ -140,13 +114,13 @@ export class RemoteAgentInvocation extends BaseToolInvocation<
         this.taskId = priorState.taskId;
       }
 
-      const authHandler = await this.getAuthHandler();
-
       if (!this.clientManager.getClient(this.definition.name)) {
         await this.clientManager.loadAgent(
           this.definition.name,
-          this.definition.agentCardUrl,
-          authHandler,
+          this.definition.agentCardJson
+            ? { type: 'json', json: this.definition.agentCardJson }
+            : { type: 'url', url: this.definition.agentCardUrl! },
+          this.definition.auth,
         );
       }
 

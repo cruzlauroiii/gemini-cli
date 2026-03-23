@@ -15,7 +15,6 @@ import { GeneralistAgent } from './generalist-agent.js';
 import { BrowserAgentDefinition } from './browser/browserAgentDefinition.js';
 import { MemoryManagerAgent } from './memory-manager-agent.js';
 import { A2AAuthProviderFactory } from './auth-provider/factory.js';
-import type { AuthenticationHandler } from '@a2a-js/sdk/client';
 import { type z } from 'zod';
 import { debugLogger } from '../utils/debugLogger.js';
 import { isAutoModel } from '../config/models.js';
@@ -156,13 +155,13 @@ export class AgentRegistry {
       const agentsToRegister: AgentDefinition[] = [];
 
       for (const agent of projectAgents.agents) {
-        // If it's a remote agent, use the agentCardUrl as the hash.
+        // If it's a remote agent, use the cardUrl as the hash, or stringify the json.
         // This allows multiple remote agents in a single file to be tracked independently.
         if (agent.kind === 'remote') {
           if (!agent.metadata) {
             agent.metadata = {};
           }
-          agent.metadata.hash = agent.agentCardUrl;
+          agent.metadata.hash = agent.agentCardUrl ?? agent.agentCardJson;
         }
 
         if (!agent.metadata?.hash) {
@@ -270,16 +269,14 @@ export class AgentRegistry {
     }
   }
 
-  private async refreshAgents(
-    scope: AgentDefinition['kind'] | 'all' = 'all',
-  ): Promise<void> {
-    this.loadBuiltInAgents();
+  private async refreshAgents(scope?: 'local' | 'remote'): Promise<void> {
+    if (!scope || scope === 'local') {
+      this.loadBuiltInAgents();
+    }
     await Promise.allSettled(
-      Array.from(this.agents.values()).map(async (agent) => {
-        if (scope === 'all' || agent.kind === scope) {
-          await this.registerAgent(agent);
-        }
-      }),
+      Array.from(this.agents.values())
+        .filter((agent) => !scope || agent.kind === scope)
+        .map((agent) => this.registerAgent(agent)),
     );
   }
 
@@ -443,26 +440,12 @@ export class AgentRegistry {
         );
         return;
       }
-      let authHandler: AuthenticationHandler | undefined;
-      if (definition.auth) {
-        const provider = await A2AAuthProviderFactory.create({
-          authConfig: definition.auth,
-          agentName: definition.name,
-          targetUrl: definition.agentCardUrl,
-          agentCardUrl: remoteDef.agentCardUrl,
-        });
-        if (!provider) {
-          throw new Error(
-            `Failed to create auth provider for agent '${definition.name}'`,
-          );
-        }
-        authHandler = provider;
-      }
-
       const agentCard = await clientManager.loadAgent(
         remoteDef.name,
-        remoteDef.agentCardUrl,
-        authHandler,
+        remoteDef.agentCardJson
+          ? { type: 'json', json: remoteDef.agentCardJson }
+          : { type: 'url', url: remoteDef.agentCardUrl! },
+        definition.auth,
       );
 
       // Validate auth configuration against the agent card's security schemes.
@@ -514,8 +497,9 @@ export class AgentRegistry {
       }
 
       if (this.config.getDebugMode()) {
+        const sourceStr = definition.agentCardUrl ?? 'inline JSON';
         debugLogger.log(
-          `[AgentRegistry] Registered remote agent '${definition.name}' with card: ${definition.agentCardUrl}`,
+          `[AgentRegistry] Registered remote agent '${definition.name}' with card: ${sourceStr}`,
         );
       }
       this.agents.set(definition.name, definition);

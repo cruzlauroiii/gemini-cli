@@ -16,6 +16,10 @@ import type { AnySchema } from 'ajv';
 import type { A2AAuthConfig } from './auth-provider/types.js';
 import type { MCPServerConfig } from '../config/config.js';
 
+export type AgentCardLoadOptions =
+  | { type: 'url'; url: string }
+  | { type: 'json'; json: string };
+
 /**
  * Describes the possible termination modes for an agent.
  */
@@ -160,11 +164,10 @@ export interface LocalAgentDefinition<
   processOutput?: (output: z.infer<TOutput>) => string;
 }
 
-export interface RemoteAgentDefinition<
+export interface BaseRemoteAgentDefinition<
   TOutput extends z.ZodTypeAny = z.ZodUnknown,
 > extends BaseAgentDefinition<TOutput> {
   kind: 'remote';
-  agentCardUrl: string;
   /** The user-provided description, before any remote card merging. */
   originalDescription?: string;
   /**
@@ -173,6 +176,13 @@ export interface RemoteAgentDefinition<
    * security requirements.
    */
   auth?: A2AAuthConfig;
+}
+
+export interface RemoteAgentDefinition<
+  TOutput extends z.ZodTypeAny = z.ZodUnknown,
+> extends BaseRemoteAgentDefinition<TOutput> {
+  agentCardUrl?: string;
+  agentCardJson?: string;
 }
 
 export type AgentDefinition<TOutput extends z.ZodTypeAny = z.ZodUnknown> =

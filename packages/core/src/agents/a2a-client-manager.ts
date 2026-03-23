@@ -28,7 +28,10 @@ import { Agent as UndiciAgent, ProxyAgent } from 'undici';
 import { normalizeAgentCard } from './a2aUtils.js';
 import type { Config } from '../config/config.js';
 import { debugLogger } from '../utils/debugLogger.js';
+import type { AgentCardLoadOptions } from './types.js';
 import { classifyAgentError } from './a2a-errors.js';
+import type { A2AAuthConfig } from './auth-provider/types.js';
+import { A2AAuthProviderFactory } from './auth-provider/factory.js';
 
 /**
  * Result of sending a message, which can be a full message, a task,
@@ -79,51 +82,72 @@ export class A2AClientManager {
   /**
    * Loads an agent by fetching its AgentCard and caches the client.
    * @param name The name to assign to the agent.
-   * @param agentCardUrl The full URL to the agent's card.
+   * @param options The URL to the agent's card, or the inline JSON card representation.
    * @param authHandler Optional authentication handler to use for this agent.
    * @returns The loaded AgentCard.
    */
   async loadAgent(
     name: string,
-    agentCardUrl: string,
-    authHandler?: AuthenticationHandler,
+    options: AgentCardLoadOptions,
+    authConfig?: A2AAuthConfig,
   ): Promise<AgentCard> {
     if (this.clients.has(name) && this.agentCards.has(name)) {
       throw new Error(`Agent with name '${name}' is already loaded.`);
     }
 
-    // Authenticated fetch for API calls (transports).
-    let authFetch: typeof fetch = this.a2aFetch;
+    let authHandler: AuthenticationHandler | undefined;
+
+    // 1. If we are loading from URL, we need auth upfront to fetch the card itself.
+    if (authConfig && options.type === 'url') {
+      const provider = await A2AAuthProviderFactory.create({
+        authConfig,
+        agentName: name,
+        targetUrl: options.url,
+        agentCardUrl: options.url,
+      });
+      if (!provider) {
+        throw new Error(`Failed to create auth provider for agent '${name}'`);
+      }
+      authHandler = provider;
+    }
+
+    // Authenticated fetch for card fetching (only actually used if options.type === 'url')
+    let cardFetchBase = this.a2aFetch;
     if (authHandler) {
-      authFetch = createAuthenticatingFetchWithRetry(
+      cardFetchBase = createAuthenticatingFetchWithRetry(
         this.a2aFetch,
         authHandler,
       );
     }
+    const cardFetch = this.createCardFetch(
+      authHandler ? cardFetchBase : undefined,
+    );
 
-    // Use unauthenticated fetch for the agent card unless explicitly required.
-    // Some servers reject unexpected auth headers on the card endpoint (e.g. 400).
-    const cardFetch = async (
-      input: RequestInfo | URL,
-      init?: RequestInit,
-    ): Promise<Response> => {
-      // Try without auth first
-      const response = await this.a2aFetch(input, init);
-
-      // Retry with auth if we hit a 401/403
-      if ((response.status === 401 || response.status === 403) && authFetch) {
-        return authFetch(input, init);
-      }
-
-      return response;
-    };
-
-    const resolver = new DefaultAgentCardResolver({ fetchImpl: cardFetch });
-    const rawCard = await resolver.resolve(agentCardUrl, '');
+    const rawCard = await this.resolveRawAgentCard(name, options, cardFetch);
     // TODO: Remove normalizeAgentCard once @a2a-js/sdk handles
     // proto field name aliases (supportedInterfaces → additionalInterfaces,
     // protocolBinding → transport).
     const agentCard = normalizeAgentCard(rawCard);
+
+    // 2. If we loaded from JSON, we now have the parsed agentCard and its URL. We can construct Auth.
+    if (authConfig && options.type === 'json') {
+      const provider = await A2AAuthProviderFactory.create({
+        authConfig,
+        agentName: name,
+        targetUrl: agentCard.url,
+        agentCardUrl: agentCard.url,
+      });
+      if (!provider) {
+        throw new Error(`Failed to create auth provider for agent '${name}'`);
+      }
+      authHandler = provider;
+    }
+
+    // Authenticated fetch for API calls (transports).
+    let apiFetch = this.a2aFetch;
+    if (authHandler) {
+      apiFetch = createAuthenticatingFetchWithRetry(this.a2aFetch, authHandler);
+    }
 
     const grpcUrl =
       agentCard.additionalInterfaces?.find((i) => i.transport === 'GRPC')
@@ -133,15 +157,18 @@ export class A2AClientManager {
       ClientFactoryOptions.default,
       {
         transports: [
-          new RestTransportFactory({ fetchImpl: authFetch }),
-          new JsonRpcTransportFactory({ fetchImpl: authFetch }),
+          new RestTransportFactory({ fetchImpl: apiFetch }),
+          new JsonRpcTransportFactory({ fetchImpl: apiFetch }),
           new GrpcTransportFactory({
-            grpcChannelCredentials: grpcUrl.startsWith('https://')
+            grpcChannelCredentials: grpcUrl?.startsWith('https://')
               ? grpc.credentials.createSsl()
               : grpc.credentials.createInsecure(),
           }),
         ],
-        cardResolver: resolver,
+        cardResolver:
+          options.type === 'url'
+            ? new DefaultAgentCardResolver({ fetchImpl: cardFetch })
+            : undefined,
       },
     );
 
@@ -153,12 +180,14 @@ export class A2AClientManager {
       this.agentCards.set(name, agentCard);
 
       debugLogger.debug(
-        `[A2AClientManager] Loaded agent '${name}' from ${agentCardUrl}`,
+        `[A2AClientManager] Loaded agent '${name}'${options.type === 'url' ? ` from ${options.url}` : ''}`,
       );
 
       return agentCard;
     } catch (error: unknown) {
-      throw classifyAgentError(name, agentCardUrl, error);
+      const sourceDesc =
+        options.type === 'url' ? options.url : 'inline JSON reference';
+      throw classifyAgentError(name, sourceDesc, error);
     }
   }
 
@@ -269,5 +298,65 @@ export class A2AClientManager {
       }
       throw new Error(`${prefix}: Unexpected error: ${String(error)}`);
     }
+  }
+
+  private createCardFetch(authFetch?: typeof fetch): typeof fetch {
+    return async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      // Try without auth first
+      const response = await this.a2aFetch(input, init);
+
+      // Retry with auth if we hit a 401/403
+      if ((response.status === 401 || response.status === 403) && authFetch) {
+        return authFetch(input, init);
+      }
+
+      return response;
+    };
+  }
+
+  private async resolveRawAgentCard(
+    name: string,
+    options: AgentCardLoadOptions,
+    cardFetch: typeof fetch,
+  ): Promise<unknown> {
+    if (options.type === 'json') {
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(options.json);
+        if (
+          !parsedJson ||
+          typeof parsedJson !== 'object' ||
+          Array.isArray(parsedJson)
+        ) {
+          throw new Error('Parsed value is not a JSON object');
+        }
+      } catch (error) {
+        throw new Error(
+          `agentCardOptions.json must strictly parse into a valid JSON object: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      debugLogger.debug(
+        `[A2AClientManager] Initializing agent '${name}' directly from agentCardJson`,
+      );
+      return parsedJson;
+    }
+
+    if (options.type === 'url') {
+      const resolver = new DefaultAgentCardResolver({ fetchImpl: cardFetch });
+      const rawCard = await resolver.resolve(options.url, '');
+      debugLogger.debug(
+        `[A2AClientManager] Resolved agent '${name}' card from ${options.url}`,
+      );
+      return rawCard;
+    }
+
+    throw new Error(
+      `Invalid AgentCardLoadOptions type: ${String((options as { type?: string }).type)}`,
+    );
   }
 }
