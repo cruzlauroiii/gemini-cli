@@ -15,6 +15,7 @@ describe('deriveItemsFromLegacySettings', () => {
     }).merged;
     const items = deriveItemsFromLegacySettings(settings);
     expect(items).toEqual([
+      'mode',
       'workspace',
       'git-branch',
       'sandbox',
@@ -29,6 +30,14 @@ describe('deriveItemsFromLegacySettings', () => {
     }).merged;
     const items = deriveItemsFromLegacySettings(settings);
     expect(items).not.toContain('workspace');
+  });
+
+  it('removes mode when hideApprovalMode is true', () => {
+    const settings = createMockSettings({
+      ui: { footer: { hideApprovalMode: true, hideContextPercentage: true } },
+    }).merged;
+    const items = deriveItemsFromLegacySettings(settings);
+    expect(items).not.toContain('mode');
   });
 
   it('removes sandbox when hideSandboxStatus is true', () => {
@@ -82,6 +91,7 @@ describe('deriveItemsFromLegacySettings', () => {
     }).merged;
     const items = deriveItemsFromLegacySettings(settings);
     expect(items).toEqual([
+      'mode',
       'git-branch',
       'sandbox',
       'context-used',

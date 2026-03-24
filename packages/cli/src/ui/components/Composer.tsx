@@ -5,8 +5,6 @@
  */
 
 import {
-  ApprovalMode,
-  checkExhaustive,
   CoreToolCallStatus,
   isUserVisibleHook,
 } from '@google/gemini-cli-core';
@@ -30,7 +28,6 @@ import { ContextUsageDisplay } from './ContextUsageDisplay.js';
 import { StatusDisplay } from './StatusDisplay.js';
 import { HorizontalLine } from './shared/HorizontalLine.js';
 import { ToastDisplay, shouldShowToast } from './ToastDisplay.js';
-import { ApprovalModeIndicator } from './ApprovalModeIndicator.js';
 import { ShellModeIndicator } from './ShellModeIndicator.js';
 import { DetailedMessagesDisplay } from './DetailedMessagesDisplay.js';
 import { RawMarkdownIndicator } from './RawMarkdownIndicator.js';
@@ -56,7 +53,6 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
 
   const isAlternateBuffer = useAlternateBuffer();
-  const showApprovalModeIndicator = uiState.showApprovalModeIndicator;
   const loadingPhrases = settings.merged.ui.loadingPhrases;
   const showTips = loadingPhrases === 'tips' || loadingPhrases === 'all';
   const showWit = loadingPhrases === 'witty' || loadingPhrases === 'all';
@@ -131,35 +127,7 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
 
   const hideUiDetailsForSuggestions =
     suggestionsVisible && suggestionsPosition === 'above';
-  const showApprovalIndicator =
-    !uiState.shellModeActive && !hideUiDetailsForSuggestions;
   const showRawMarkdownIndicator = !uiState.renderMarkdown;
-
-  let modeBleedThrough: { text: string; color: string } | null = null;
-  switch (showApprovalModeIndicator) {
-    case ApprovalMode.YOLO:
-      modeBleedThrough = { text: 'YOLO', color: theme.status.error };
-      break;
-    case ApprovalMode.PLAN:
-      modeBleedThrough = { text: 'plan', color: theme.status.success };
-      break;
-    case ApprovalMode.AUTO_EDIT:
-      modeBleedThrough = { text: 'auto edit', color: theme.status.warning };
-      break;
-    case ApprovalMode.DEFAULT:
-      modeBleedThrough = null;
-      break;
-    default:
-      checkExhaustive(showApprovalModeIndicator);
-      modeBleedThrough = null;
-      break;
-  }
-
-  const hideMinimalModeHintWhileBusy =
-    !showUiDetails && (showLoadingIndicator || hasPendingActionRequired);
-
-  // Universal Content Objects
-  const modeContentObj = hideMinimalModeHintWhileBusy ? null : modeBleedThrough;
 
   const allHooks = uiState.activeHooks;
   const hasAnyHooks = allHooks.length > 0;
@@ -251,8 +219,6 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
     !hasPendingActionRequired && tipContentStr && !willCollideTip && !isNarrow;
 
   // Mini Mode VIP Flags (Pure Content Triggers)
-  const miniMode_ShowApprovalMode =
-    Boolean(modeContentObj) && !hideUiDetailsForSuggestions;
   const miniMode_ShowToast = hasToast;
   const miniMode_ShowShortcuts = shouldReserveSpaceForShortcutsHint;
   const miniMode_ShowStatus = showLoadingIndicator || hasAnyHooks;
@@ -264,19 +230,17 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
   );
 
   // Composite Mini Mode Triggers
-  const showRow1_MiniMode =
-    miniMode_ShowToast ||
-    miniMode_ShowStatus ||
-    miniMode_ShowShortcuts ||
-    miniMode_ShowTip;
+  const showRow1_Content =
+    miniMode_ShowToast || miniMode_ShowShortcuts || miniMode_ShowTip;
 
-  const showRow2_MiniMode = miniMode_ShowApprovalMode || miniMode_ShowContext;
+  const showRow2_Content = miniMode_ShowStatus || miniMode_ShowContext;
 
   // Final Display Rules (Stable Footer Architecture)
-  const showRow1 = showUiDetails || showRow1_MiniMode;
-  const showRow2 = showUiDetails || showRow2_MiniMode;
-
-  const showMinimalBleedThroughRow = !showUiDetails && showRow2_MiniMode;
+  // We only show the row if it has content OR if we are in full UI mode AND not hiding details for suggestions
+  const showRow1 =
+    (showUiDetails || showRow1_Content) && !hideUiDetailsForSuggestions;
+  const showRow2 =
+    (showUiDetails || showRow2_Content) && !hideUiDetailsForSuggestions;
 
   const renderTipNode = () => {
     if (!tipContentStr) return null;
@@ -365,25 +329,18 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
   const renderMinimalMetaRowContent = () => (
     <Box flexDirection="row" columnGap={1}>
       {renderStatusNode()}
-      {showMinimalBleedThroughRow && (
-        <Box>
-          {miniMode_ShowApprovalMode && modeContentObj && (
-            <Text color={modeContentObj.color}>● {modeContentObj.text}</Text>
-          )}
-        </Box>
-      )}
     </Box>
   );
 
   const renderStatusRow = () => {
     // Mini Mode Height Reservation (The "Anti-Jitter" line)
-    if (!showUiDetails && !showRow1_MiniMode && !showRow2_MiniMode) {
+    if (!showUiDetails && !showRow1_Content && !showRow2_Content) {
       return <Box height={1} />;
     }
 
     return (
       <Box flexDirection="column" width="100%">
-        {/* Row 1: multipurpose status (thinking, hooks, wit, tips) */}
+        {/* Row 1: System Indicators (Previously below divider) and Tips */}
         {showRow1 && (
           <Box
             width="100%"
@@ -393,7 +350,67 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
             minHeight={1}
           >
             <Box flexDirection="row" flexGrow={1} flexShrink={1}>
-              {!showUiDetails && showRow1_MiniMode ? (
+              {showUiDetails ? (
+                <Box flexDirection="row" alignItems="center" marginLeft={1}>
+                  {hasToast ? (
+                    <ToastDisplay />
+                  ) : (
+                    <Box
+                      flexDirection={isNarrow ? 'column' : 'row'}
+                      alignItems={isNarrow ? 'flex-start' : 'center'}
+                    >
+                      {uiState.shellModeActive && (
+                        <Box marginTop={isNarrow ? 1 : 0}>
+                          <ShellModeIndicator />
+                        </Box>
+                      )}
+                      {showRawMarkdownIndicator && (
+                        <Box
+                          marginLeft={
+                            uiState.shellModeActive && !isNarrow ? 1 : 0
+                          }
+                          marginTop={
+                            uiState.shellModeActive && isNarrow ? 1 : 0
+                          }
+                        >
+                          <RawMarkdownIndicator />
+                        </Box>
+                      )}
+                    </Box>
+                  )}
+                </Box>
+              ) : miniMode_ShowToast ? (
+                <Box marginLeft={1}>
+                  <ToastDisplay />
+                </Box>
+              ) : null}
+            </Box>
+
+            <Box flexShrink={0} marginLeft={2} marginRight={isNarrow ? 0 : 1}>
+              {!isNarrow && showTipLine && renderTipNode()}
+            </Box>
+          </Box>
+        )}
+
+        {/* Internal Separator Line */}
+        {showRow1 &&
+          showRow2 &&
+          (showUiDetails || (showRow1_Content && showRow2_Content)) && (
+            <Box width="100%">
+              <HorizontalLine dim />
+            </Box>
+          )}
+
+        {/* Row 2: Active State (Loading/Hooks) and Context Summary */}
+        {showRow2 && (
+          <Box
+            width="100%"
+            flexDirection={isNarrow ? 'column' : 'row'}
+            alignItems={isNarrow ? 'flex-start' : 'center'}
+            justifyContent="space-between"
+          >
+            <Box flexDirection="row" flexGrow={1} flexShrink={1}>
+              {!showUiDetails && showRow1_Content && !miniMode_ShowToast ? (
                 renderMinimalMetaRowContent()
               ) : isInteractiveShellWaiting ? (
                 <Box width="100%" marginLeft={1}>
@@ -411,75 +428,6 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
                 >
                   {statusNode}
                 </Box>
-              )}
-            </Box>
-
-            <Box flexShrink={0} marginLeft={2} marginRight={isNarrow ? 0 : 1}>
-              {!isNarrow && showTipLine && renderTipNode()}
-            </Box>
-          </Box>
-        )}
-
-        {/* Internal Separator Line */}
-        {showRow1 &&
-          showRow2 &&
-          (showUiDetails || (showRow1_MiniMode && showRow2_MiniMode)) && (
-            <Box width="100%">
-              <HorizontalLine dim />
-            </Box>
-          )}
-
-        {/* Row 2: Mode and Context Summary */}
-        {showRow2 && (
-          <Box
-            width="100%"
-            flexDirection={isNarrow ? 'column' : 'row'}
-            alignItems={isNarrow ? 'flex-start' : 'center'}
-            justifyContent="space-between"
-          >
-            <Box flexDirection="row" alignItems="center" marginLeft={1}>
-              {showUiDetails ? (
-                <>
-                  {showApprovalIndicator && (
-                    <ApprovalModeIndicator
-                      approvalMode={showApprovalModeIndicator}
-                      allowPlanMode={uiState.allowPlanMode}
-                    />
-                  )}
-                  {uiState.shellModeActive && (
-                    <Box
-                      marginLeft={showApprovalIndicator && !isNarrow ? 1 : 0}
-                      marginTop={showApprovalIndicator && isNarrow ? 1 : 0}
-                    >
-                      <ShellModeIndicator />
-                    </Box>
-                  )}
-                  {showRawMarkdownIndicator && (
-                    <Box
-                      marginLeft={
-                        (showApprovalIndicator || uiState.shellModeActive) &&
-                        !isNarrow
-                          ? 1
-                          : 0
-                      }
-                      marginTop={
-                        (showApprovalIndicator || uiState.shellModeActive) &&
-                        isNarrow
-                          ? 1
-                          : 0
-                      }
-                    >
-                      <RawMarkdownIndicator />
-                    </Box>
-                  )}
-                </>
-              ) : (
-                miniMode_ShowApprovalMode &&
-                modeContentObj && (
-                  <Text color={modeContentObj.color}>
-                    ● {modeContentObj.text}
-                  </Text>
-                )
               )}
             </Box>
             <Box
@@ -518,9 +466,7 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
       flexGrow={0}
       flexShrink={0}
     >
-      {(!uiState.slashCommands ||
-        !uiState.isConfigInitialized ||
-        uiState.isResuming) && (
+      {(!uiState.isConfigInitialized || uiState.isResuming) && (
         <ConfigInitDisplay
           message={uiState.isResuming ? 'Resuming session...' : undefined}
         />
@@ -533,12 +479,6 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
       {showUiDetails && <TodoTray />}
 
       {showShortcutsHelp && <ShortcutsHelp />}
-
-      {(showUiDetails || miniMode_ShowToast) && (
-        <Box minHeight={1} marginLeft={isNarrow ? 0 : 1}>
-          <ToastDisplay />
-        </Box>
-      )}
 
       <Box width="100%" flexDirection="column">
         {renderStatusRow()}
@@ -573,7 +513,7 @@ export const Composer = ({ isFocused = true }: { isFocused?: boolean }) => {
           commandContext={uiState.commandContext}
           shellModeActive={uiState.shellModeActive}
           setShellModeActive={uiActions.setShellModeActive}
-          approvalMode={showApprovalModeIndicator}
+          approvalMode={uiState.showApprovalModeIndicator}
           onEscapePromptChange={uiActions.onEscapePromptChange}
           focus={isFocused}
           vimHandleInput={uiActions.vimHandleInput}

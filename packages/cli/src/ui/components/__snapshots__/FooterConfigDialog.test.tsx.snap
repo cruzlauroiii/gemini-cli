@@ -7,6 +7,8 @@ exports[`<FooterConfigDialog /> > highlights the active item in the preview 1`] 
 │                                                                                                  │
 │  Select which items to display in the footer.                                                    │
 │                                                                                                  │
+│    [✓] mode                                                                                      │
+│     Current approval mode (manual, auto-accept, plan, YOLO)                                      │
 │    [✓] workspace                                                                                 │
 │     Current working directory                                                                    │
 │    [✓] git-branch                                                                                │
@@ -36,8 +38,8 @@ exports[`<FooterConfigDialog /> > highlights the active item in the preview 1`] 
 │                                                                                                  │
 │  ┌────────────────────────────────────────────────────────────────────────────────────────────┐  │
 │  │ Preview:                                                                                   │  │
-│  │ workspace (/directory)      branch      sandbox     /model              /stats      diff   │  │
-│  │ ~/project/path              main        docker      gemini-2.5-pro      97%         +12 -4 │  │
+│  │ mode              workspace               branc   sandbo    /model          /stat   diff   │  │
+│  │ manual+Tab)       ~/project/path          main    docker    gemini-2.5-pr   97%     +1 -4  │  │
 │  └────────────────────────────────────────────────────────────────────────────────────────────┘  │
 │                                                                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
@@ -50,7 +52,9 @@ exports[`<FooterConfigDialog /> > renders correctly with default settings 1`] = 
 │                                                                                                  │
 │  Select which items to display in the footer.                                                    │
 │                                                                                                  │
-│  > [✓] workspace                                                                                 │
+│  > [✓] mode                                                                                      │
+│     Current approval mode (manual, auto-accept, plan, YOLO)                                      │
+│    [✓] workspace                                                                                 │
 │     Current working directory                                                                    │
 │    [✓] git-branch                                                                                │
 │     Current git branch name (not shown when unavailable)                                         │
@@ -79,8 +83,8 @@ exports[`<FooterConfigDialog /> > renders correctly with default settings 1`] = 
 │                                                                                                  │
 │  ┌────────────────────────────────────────────────────────────────────────────────────────────┐  │
 │  │ Preview:                                                                                   │  │
-│  │ workspace (/directory)         branch         sandbox        /model                 /stats │  │
-│  │ ~/project/path                 main           docker         gemini-2.5-pro         97%    │  │
+│  │ mode (Shift+Tab)    workspace (/directory)    branch   sandbox    /model            /stats │  │
+│  │ manual              ~/project/path            main     docker     gemini-2.5-pro    97%    │  │
 │  └────────────────────────────────────────────────────────────────────────────────────────────┘  │
 │                                                                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
@@ -94,7 +98,9 @@ exports[`<FooterConfigDialog /> > renders correctly with default settings 2`] = 
 │                                                                                                  │
 │  Select which items to display in the footer.                                                    │
 │                                                                                                  │
-│  > [✓] workspace                                                                                 │
+│  > [✓] mode                                                                                      │
+│     Current approval mode (manual, auto-accept, plan, YOLO)                                      │
+│    [✓] workspace                                                                                 │
 │     Current working directory                                                                    │
 │    [✓] git-branch                                                                                │
 │     Current git branch name (not shown when unavailable)                                         │
@@ -123,8 +129,8 @@ exports[`<FooterConfigDialog /> > renders correctly with default settings 2`] = 
 │                                                                                                  │
 │  ┌────────────────────────────────────────────────────────────────────────────────────────────┐  │
 │  │ Preview:                                                                                   │  │
-│  │ workspace (/directory)         branch         sandbox        /model                 /stats │  │
-│  │ ~/project/path                 main           docker         gemini-2.5-pro         97%    │  │
+│  │ mode (Shift+Tab)    workspace (/directory)    branch   sandbox    /model            /stats │  │
+│  │ manual              ~/project/path            main     docker     gemini-2.5-pro    97%    │  │
 │  └────────────────────────────────────────────────────────────────────────────────────────────┘  │
 │                                                                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"
@@ -137,6 +143,8 @@ exports[`<FooterConfigDialog /> > updates the preview when Show footer labels is
 │                                                                                                  │
 │  Select which items to display in the footer.                                                    │
 │                                                                                                  │
+│    [✓] mode                                                                                      │
+│     Current approval mode (manual, auto-accept, plan, YOLO)                                      │
 │    [✓] workspace                                                                                 │
 │     Current working directory                                                                    │
 │    [✓] git-branch                                                                                │
@@ -166,7 +174,7 @@ exports[`<FooterConfigDialog /> > updates the preview when Show footer labels is
 │                                                                                                  │
 │  ┌────────────────────────────────────────────────────────────────────────────────────────────┐  │
 │  │ Preview:                                                                                   │  │
-│  │ ~/project/path     ·      main     ·       docker     ·      gemini-2.5-pro     ·      97% │  │
+│  │ manual   ·     ~/project/path   ·    main   ·     docker   ·    gemini-2.5-pro   ·     97% │  │
 │  └────────────────────────────────────────────────────────────────────────────────────────────┘  │
 │                                                                                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯"

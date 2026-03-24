@@ -8,6 +8,11 @@ import type { MergedSettings } from './settings.js';
 
 export const ALL_ITEMS = [
   {
+    id: 'mode',
+    header: 'mode (Shift+Tab)',
+    description: 'Current approval mode (manual, auto-accept, plan, YOLO)',
+  },
+  {
     id: 'workspace',
     header: 'workspace (/directory)',
     description: 'Current working directory',
@@ -62,6 +67,7 @@ export const ALL_ITEMS = [
 export type FooterItemId = (typeof ALL_ITEMS)[number]['id'];
 
 export const DEFAULT_ORDER = [
+  'mode',
   'workspace',
   'git-branch',
   'sandbox',
@@ -78,6 +84,7 @@ export function deriveItemsFromLegacySettings(
   settings: MergedSettings,
 ): string[] {
   const defaults = [
+    'mode',
     'workspace',
     'git-branch',
     'sandbox',
@@ -91,6 +98,7 @@ export function deriveItemsFromLegacySettings(
     if (idx !== -1) arr.splice(idx, 1);
   };
 
+  if (settings.ui.footer.hideApprovalMode) remove(items, 'mode');
   if (settings.ui.footer.hideCWD) remove(items, 'workspace');
   if (settings.ui.footer.hideSandboxStatus) remove(items, 'sandbox');
   if (settings.ui.footer.hideModelInfo) {

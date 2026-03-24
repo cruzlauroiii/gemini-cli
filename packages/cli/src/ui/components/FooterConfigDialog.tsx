@@ -228,6 +228,7 @@ export const FooterConfigDialog: React.FC<FooterConfigDialogProps> = ({
 
     // Mock data for preview (headers come from ALL_ITEMS)
     const mockData: Record<string, React.ReactNode> = {
+      mode: <Text color={getColor('mode', theme.text.accent)}>manual</Text>,
       workspace: (
         <Text color={getColor('workspace', itemColor)}>~/project/path</Text>
       ),

@@ -19,6 +19,7 @@ import { MemoryUsageDisplay } from './MemoryUsageDisplay.js';
 import { ContextUsageDisplay } from './ContextUsageDisplay.js';
 import { QuotaDisplay } from './QuotaDisplay.js';
 import { DebugProfiler } from './DebugProfiler.js';
+import { ApprovalModeIndicator } from './ApprovalModeIndicator.js';
 import { useUIState } from '../contexts/UIStateContext.js';
 import { useConfig } from '../contexts/ConfigContext.js';
 import { useSettings } from '../contexts/SettingsContext.js';
@@ -239,6 +240,25 @@ export const Footer: React.FC = () => {
     });
   };
 
+  // 0. Mode (Absolute Left, high priority)
+  if (!settings.merged.ui.footer.hideApprovalMode) {
+    const itemConfig = ALL_ITEMS.find((i) => i.id === 'mode');
+    const header = itemConfig?.header ?? 'mode';
+    addCol(
+      'mode',
+      header,
+      () => (
+        <ApprovalModeIndicator
+          approvalMode={uiState.showApprovalModeIndicator}
+          allowPlanMode={uiState.allowPlanMode}
+          variant="compact"
+        />
+      ),
+      20,
+      true,
+    );
+  }
+
   // 1. System Indicators (Far Left, high priority)
   if (uiState.showDebugProfiler) {
     addCol('debug', '', () => <DebugProfiler />, 45, true);
@@ -257,6 +277,7 @@ export const Footer: React.FC = () => {
   // 2. Main Configurable Items
   for (const id of items) {
     if (!isFooterItemId(id)) continue;
+    if (id === 'mode') continue; // Handled as absolute first item
     const itemConfig = ALL_ITEMS.find((i) => i.id === id);
     const header = itemConfig?.header ?? id;
 

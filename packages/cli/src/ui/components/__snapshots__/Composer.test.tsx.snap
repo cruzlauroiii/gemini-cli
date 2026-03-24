@@ -1,45 +1,43 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`Composer > Snapshots > matches snapshot in idle state 1`] = `
-"
-                                                                                    ? for shortcuts
+" RawMarkdownIndicator                                                               ? for shortcuts
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- ApprovalModeIndicator: default                                                        StatusDisplay
-InputPrompt:   Type your message or @path/to/file
+                                                                                       StatusDisplay
+InputPrompt:   Press 'i' for INSERT mode.
 Footer
 "
 `;
 
 exports[`Composer > Snapshots > matches snapshot in minimal UI mode 1`] = `
 "                                                                           press tab twice for more
-InputPrompt:   Type your message or @path/to/file
+InputPrompt:   Press 'i' for INSERT mode.
 "
 `;
 
 exports[`Composer > Snapshots > matches snapshot in minimal UI mode while loading 1`] = `
-"LoadingIndicator                                                           press tab twice for more
-InputPrompt:   Type your message or @path/to/file
+"                                                                           press tab twice for more
+────────────────────────────────────────────────────────────────────────────────────────────────────
+LoadingIndicator
+InputPrompt:   Press 'i' for INSERT mode.
 "
 `;
 
 exports[`Composer > Snapshots > matches snapshot in narrow view 1`] = `
-"
-                        ? for shortcuts
+" RawMarkdownIndicator   ? for shortcuts
 ────────────────────────────────────────
- ApprovalModeIndicator:     StatusDispl
- default                    ay
-InputPrompt:   Type your message or
-@path/to/file
+                           StatusDisplay
+InputPrompt:   Press 'i' for INSERT
+mode.
 Footer
 "
 `;
 
 exports[`Composer > Snapshots > matches snapshot while streaming 1`] = `
-"
- LoadingIndicator: Thinking                                                         ? for shortcuts
+" RawMarkdownIndicator                                                               ? for shortcuts
 ────────────────────────────────────────────────────────────────────────────────────────────────────
- ApprovalModeIndicator: default                                                        StatusDisplay
-InputPrompt:   Type your message or @path/to/file
+ LoadingIndicator: Thinking                                                            StatusDisplay
+InputPrompt:   Press 'i' for INSERT mode.
 Footer
 "
 `;

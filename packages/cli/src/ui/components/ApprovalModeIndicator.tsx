@@ -14,11 +14,13 @@ import { Command } from '../key/keyBindings.js';
 interface ApprovalModeIndicatorProps {
   approvalMode: ApprovalMode;
   allowPlanMode?: boolean;
+  variant?: 'default' | 'compact';
 }
 
 export const ApprovalModeIndicator: React.FC<ApprovalModeIndicatorProps> = ({
   approvalMode,
   allowPlanMode,
+  variant = 'default',
 }) => {
   let textColor = '';
   let textContent = '';
@@ -30,7 +32,7 @@ export const ApprovalModeIndicator: React.FC<ApprovalModeIndicatorProps> = ({
   switch (approvalMode) {
     case ApprovalMode.AUTO_EDIT:
       textColor = theme.status.warning;
-      textContent = 'auto-accept edits';
+      textContent = 'auto-accept';
       subText = allowPlanMode
         ? `${cycleHint} to plan`
         : `${cycleHint} to manual`;
@@ -48,9 +50,13 @@ export const ApprovalModeIndicator: React.FC<ApprovalModeIndicatorProps> = ({
     case ApprovalMode.DEFAULT:
     default:
       textColor = theme.text.accent;
-      textContent = '';
+      textContent = variant === 'compact' ? 'manual' : '';
       subText = `${cycleHint} to accept edits`;
       break;
+  }
+
+  if (variant === 'compact') {
+    return <Text color={textColor}>{textContent}</Text>;
   }
 
   return (
