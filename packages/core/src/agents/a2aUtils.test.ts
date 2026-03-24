@@ -253,20 +253,17 @@ describe('a2aUtils', () => {
 
   describe('normalizeAgentCard', () => {
     it('should throw if input is not an object', () => {
-      expect(() => normalizeAgentCard(null)).toThrow(
-        'Agent card is missing or invalid.',
-      );
+      expect(() => normalizeAgentCard(null)).toThrow('Agent card is missing.');
       expect(() => normalizeAgentCard(undefined)).toThrow(
-        'Agent card is missing or invalid.',
+        'Agent card is missing.',
       );
       expect(() => normalizeAgentCard('not an object')).toThrow(
-        'Agent card is missing or invalid.',
+        'Agent card is missing.',
       );
     });
 
     it('should preserve unknown fields while providing defaults for mandatory ones', () => {
       const raw = {
-        url: 'http://test',
         name: 'my-agent',
         customField: 'keep-me',
       };
@@ -284,7 +281,6 @@ describe('a2aUtils', () => {
     it('should map supportedInterfaces to additionalInterfaces with protocolBinding → transport', () => {
       const raw = {
         name: 'test',
-        url: 'http://test',
         supportedInterfaces: [
           {
             url: 'grpc://test',
@@ -310,7 +306,6 @@ describe('a2aUtils', () => {
     it('should not overwrite additionalInterfaces if already present', () => {
       const raw = {
         name: 'test',
-        url: 'http://test',
         additionalInterfaces: [{ url: 'http://grpc', transport: 'GRPC' }],
         supportedInterfaces: [{ url: 'http://other', transport: 'REST' }],
       };
@@ -323,7 +318,6 @@ describe('a2aUtils', () => {
     it('should NOT override existing transport if protocolBinding is also present', () => {
       const raw = {
         name: 'priority-test',
-        url: 'http://test',
         supportedInterfaces: [
           { url: 'foo', transport: 'GRPC', protocolBinding: 'REST' },
         ],
@@ -335,7 +329,6 @@ describe('a2aUtils', () => {
     it('should not mutate the original card object', () => {
       const raw = {
         name: 'test',
-        url: 'http://test',
         supportedInterfaces: [{ url: 'grpc://test', protocolBinding: 'GRPC' }],
       };
 

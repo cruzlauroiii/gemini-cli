@@ -82,17 +82,12 @@ interface FrontmatterAuthConfig {
   token_url?: string;
 }
 
-interface FrontmatterRemoteAgentDefinitionBase
+interface FrontmatterRemoteAgentDefinition
   extends FrontmatterBaseAgentDefinition {
   kind: 'remote';
   description?: string;
+  agent_card_url: string;
   auth?: FrontmatterAuthConfig;
-}
-
-interface FrontmatterRemoteAgentDefinition
-  extends FrontmatterRemoteAgentDefinitionBase {
-  agent_card_url?: string;
-  agent_card_json?: string;
 }
 
 type FrontmatterAgentDefinition =
@@ -257,67 +252,48 @@ const authConfigSchema = z
     }
   });
 
-const baseRemoteAgentSchema = z.object({
-  kind: z.literal('remote').optional().default('remote'),
-  name: nameSchema,
-  description: z.string().optional(),
-  display_name: z.string().optional(),
-  auth: authConfigSchema.optional(),
-});
-
-const remoteAgentUrlSchema = baseRemoteAgentSchema
-  .extend({
+const remoteAgentSchema = z
+  .object({
+    kind: z.literal('remote').optional().default('remote'),
+    name: nameSchema,
+    description: z.string().optional(),
+    display_name: z.string().optional(),
     agent_card_url: z.string().url(),
-    agent_card_json: z.undefined().optional(),
+    auth: authConfigSchema.optional(),
   })
   .strict();
-
-const remoteAgentJsonSchema = baseRemoteAgentSchema
-  .extend({
-    agent_card_url: z.undefined().optional(),
-    agent_card_json: z.string(),
-  })
-  .strict();
-
-const remoteAgentSchema = z.union([
-  remoteAgentUrlSchema,
-  remoteAgentJsonSchema,
-]);
 
 // Use a Zod union to automatically discriminate between local and remote
 // agent types.
-const agentUnionOptions = [
-  { schema: localAgentSchema, label: 'Local Agent' },
-  { schema: remoteAgentSchema, label: 'Remote Agent' },
-] as const;
+const agentUnionOptions = [{ label: 'Local Agent' }, { label: 'Remote Agent' }];
 
 const remoteAgentsListSchema = z.array(remoteAgentSchema);
 
 const markdownFrontmatterSchema = z.union([
-  agentUnionOptions[0].schema,
-  agentUnionOptions[1].schema,
+  localAgentSchema,
+  remoteAgentSchema,
 ]);
 
 function formatZodError(error: z.ZodError, context: string): string {
-  const formatIssues = (issues: z.ZodIssue[], unionPrefix?: string): string[] =>
-    issues.flatMap((i) => {
+  const issues = error.issues
+    .map((i) => {
       // Handle union errors specifically to give better context
       if (i.code === z.ZodIssueCode.invalid_union) {
-        return i.unionErrors.flatMap((unionError, index) => {
-          const label = unionPrefix
-            ? unionPrefix
-            : ((agentUnionOptions[index] as { label?: string })?.label ??
-              `Branch #${index + 1}`);
-          return formatIssues(unionError.issues, label);
-        });
+        return i.unionErrors
+          .map((unionError, index) => {
+            const label =
+              agentUnionOptions[index]?.label ?? `Agent type #${index + 1}`;
+            const unionIssues = unionError.issues
+              .map((u) => `${u.path.join('.')}: ${u.message}`)
+              .join(', ');
+            return `(${label}) ${unionIssues}`;
+          })
+          .join('\n');
       }
-      const prefix = unionPrefix ? `(${unionPrefix}) ` : '';
-      const path = i.path.length > 0 ? `${i.path.join('.')}: ` : '';
-      return `${prefix}${path}${i.message}`;
-    });
-
-  const formatted = Array.from(new Set(formatIssues(error.issues))).join('\n');
-  return `${context}:\n${formatted}`;
+      return `${i.path.join('.')}: ${i.message}`;
+    })
+    .join('\n');
+  return `${context}:\n${issues}`;
 }
 
 /**
@@ -536,35 +512,18 @@ export function markdownToAgentDefinition(
   };
 
   if (markdown.kind === 'remote') {
-    const base = {
-      kind: 'remote' as const,
+    return {
+      kind: 'remote',
       name: markdown.name,
       description: markdown.description || '',
       displayName: markdown.display_name,
+      agentCardUrl: markdown.agent_card_url,
       auth: markdown.auth
         ? convertFrontmatterAuthToConfig(markdown.auth)
         : undefined,
       inputConfig,
       metadata,
     };
-
-    if (markdown.agent_card_json) {
-      return {
-        ...base,
-        agentCardJson: markdown.agent_card_json,
-      } as AgentDefinition;
-    }
-    if (markdown.agent_card_url) {
-      return {
-        ...base,
-        agentCardUrl: markdown.agent_card_url,
-      } as AgentDefinition;
-    }
-
-    throw new AgentLoadError(
-      metadata?.filePath || 'unknown',
-      'Unexpected state: neither agent_card_json nor agent_card_url present on remote agent',
-    );
   }
 
   // If a model is specified, use it. Otherwise, inherit

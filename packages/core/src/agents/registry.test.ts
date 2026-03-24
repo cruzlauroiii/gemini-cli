@@ -31,6 +31,7 @@ import { ThinkingLevel } from '@google/genai';
 import type { AcknowledgedAgentsService } from './acknowledgedAgents.js';
 import { PolicyDecision } from '../policy/types.js';
 import { A2AAuthProviderFactory } from './auth-provider/factory.js';
+import type { A2AAuthProvider } from './auth-provider/types.js';
 
 vi.mock('./agentLoader.js', () => ({
   loadAgentsFromDirectory: vi
@@ -568,6 +569,15 @@ describe('AgentRegistry', () => {
         auth: mockAuth,
       };
 
+      const mockHandler = {
+        type: 'http' as const,
+        headers: vi
+          .fn()
+          .mockResolvedValue({ Authorization: 'Bearer secret-token' }),
+        shouldRetryWithHeaders: vi.fn(),
+      } as unknown as A2AAuthProvider;
+      vi.mocked(A2AAuthProviderFactory.create).mockResolvedValue(mockHandler);
+
       const loadAgentSpy = vi
         .fn()
         .mockResolvedValue({ name: 'RemoteAgentWithAuth' });
@@ -578,15 +588,58 @@ describe('AgentRegistry', () => {
 
       await registry.testRegisterAgent(remoteAgent);
 
+      expect(A2AAuthProviderFactory.create).toHaveBeenCalledWith({
+        authConfig: mockAuth,
+        agentName: 'RemoteAgentWithAuth',
+        targetUrl: 'https://example.com/card',
+        agentCardUrl: 'https://example.com/card',
+      });
       expect(loadAgentSpy).toHaveBeenCalledWith(
         'RemoteAgentWithAuth',
-        { type: 'url', url: 'https://example.com/card' },
-        mockAuth,
+        'https://example.com/card',
+        mockHandler,
       );
       expect(registry.getDefinition('RemoteAgentWithAuth')).toEqual(
         remoteAgent,
       );
     });
+
+    it('should not register remote agent when auth provider factory returns undefined', async () => {
+      const remoteAgent: AgentDefinition = {
+        kind: 'remote',
+        name: 'RemoteAgentBadAuth',
+        description: 'A remote agent',
+        agentCardUrl: 'https://example.com/card',
+        inputConfig: { inputSchema: { type: 'object' } },
+        auth: {
+          type: 'http' as const,
+          scheme: 'Bearer' as const,
+          token: 'secret-token',
+        },
+      };
+
+      vi.mocked(A2AAuthProviderFactory.create).mockResolvedValue(undefined);
+      const loadAgentSpy = vi.fn();
+      vi.spyOn(mockConfig, 'getA2AClientManager').mockReturnValue({
+        loadAgent: loadAgentSpy,
+        clearCache: vi.fn(),
+      } as unknown as A2AClientManager);
+
+      const warnSpy = vi
+        .spyOn(debugLogger, 'warn')
+        .mockImplementation(() => {});
+
+      await registry.testRegisterAgent(remoteAgent);
+
+      expect(loadAgentSpy).not.toHaveBeenCalled();
+      expect(registry.getDefinition('RemoteAgentBadAuth')).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Error loading A2A agent'),
+        expect.any(Error),
+      );
+      warnSpy.mockRestore();
+    });
+
     it('should log remote agent registration in debug mode', async () => {
       const debugConfig = makeMockedConfig({ debugMode: true });
       const debugRegistry = new TestableAgentRegistry(debugConfig);
@@ -1153,6 +1206,32 @@ describe('AgentRegistry', () => {
   });
 
   describe('inheritance and refresh', () => {
+    it('should skip remote agents when refreshing on model change', async () => {
+      const remoteAgent: AgentDefinition = {
+        kind: 'remote',
+        name: 'RemoteAgent',
+        description: 'A remote agent',
+        agentCardUrl: 'https://example.com/card',
+        inputConfig: { inputSchema: { type: 'object' } },
+      };
+
+      const loadAgentSpy = vi.fn().mockResolvedValue({ name: 'RemoteAgent' });
+      vi.spyOn(mockConfig, 'getA2AClientManager').mockReturnValue({
+        loadAgent: loadAgentSpy,
+        clearCache: vi.fn(),
+      } as unknown as A2AClientManager);
+
+      await registry.testRegisterAgent(remoteAgent);
+
+      expect(loadAgentSpy).toHaveBeenCalledTimes(1);
+
+      coreEvents.emitModelChanged('new-model');
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(loadAgentSpy).toHaveBeenCalledTimes(1);
+    });
+
     it('should resolve "inherit" to the current model from configuration', async () => {
       const config = makeMockedConfig({ model: 'current-model' });
       const registry = new TestableAgentRegistry(config);

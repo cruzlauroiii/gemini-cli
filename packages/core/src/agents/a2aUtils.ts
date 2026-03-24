@@ -16,8 +16,6 @@ import type {
   AgentInterface,
 } from '@a2a-js/sdk';
 import type { SendMessageResult } from './a2a-client-manager.js';
-import { z } from 'zod';
-import { debugLogger } from '../utils/debugLogger.js';
 
 export const AUTH_REQUIRED_MSG = `[Authorization Required] The agent has indicated it requires authorization to proceed. Please follow the agent's instructions.`;
 
@@ -212,16 +210,6 @@ function extractPartText(part: Part): string {
   return '';
 }
 
-const AgentCardSchema = z
-  .object({
-    url: z.string().url('AgentCard must contain a valid url property'),
-    name: z.string().optional(),
-    description: z.string().optional(),
-    supportedInterfaces: z.array(z.record(z.string(), z.unknown())).optional(),
-    additionalInterfaces: z.array(z.record(z.string(), z.unknown())).optional(),
-  })
-  .passthrough();
-
 /**
  * Normalizes proto field name aliases that the SDK doesn't handle yet.
  * The A2A proto spec uses `supported_interfaces` and `protocol_binding`,
@@ -230,25 +218,12 @@ const AgentCardSchema = z
  */
 export function normalizeAgentCard(card: unknown): AgentCard {
   if (!isObject(card)) {
-    throw new Error('Agent card is missing or invalid.');
-  }
-
-  // Enforce runtime type-safety before casting
-  const validation = AgentCardSchema.safeParse(card);
-  if (!validation.success) {
-    const issues = validation.error.issues
-      .map((i) => `${i.path.join('.')}: ${i.message}`)
-      .join(', ');
-
-    debugLogger.warn(`[A2AUtils] Agent card validation failed: ${issues}`);
-    throw new Error(
-      'The provided agent card is structurally invalid or missing mandatory endpoints.',
-    );
+    throw new Error('Agent card is missing.');
   }
 
   // Shallow-copy to avoid mutating the SDK's cached object.
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-  const result = { ...validation.data } as unknown as AgentCard;
+  const result = { ...card } as unknown as AgentCard;
 
   // Map supportedInterfaces → additionalInterfaces if needed
   if (!result.additionalInterfaces) {
