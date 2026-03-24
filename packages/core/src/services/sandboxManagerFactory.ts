@@ -35,7 +35,15 @@ export function createSandboxManager(
     isWindows &&
     (sandbox?.enabled || sandbox?.command === 'windows-native')
   ) {
-    return new WindowsSandboxManager({ workspace });
+    const modeConfig =
+      policyManager && approvalMode
+        ? policyManager.getModeConfig(approvalMode)
+        : undefined;
+    return new WindowsSandboxManager({
+      workspace,
+      modeConfig,
+      policyManager,
+    });
   }
 
   if (sandbox?.enabled) {
