@@ -66,11 +66,11 @@ export const usePhraseCycler = (
 
     if (shouldShowFocusHint || isWaiting) {
       // These are handled by the return value directly for immediate feedback
-      return;
+      return clearTimers;
     }
 
     if (!isActive || (!showTips && !showWit)) {
-      return;
+      return clearTimers;
     }
 
     const wittyPhrasesList =
@@ -101,8 +101,9 @@ export const usePhraseCycler = (
           : INFORMATIVE_TIPS;
 
       if (filteredTips.length > 0) {
-        const selected =
-          filteredTips[Math.floor(Math.random() * filteredTips.length)];
+        const randomIndex =
+          crypto.getRandomValues(new Uint32Array(1))[0] % filteredTips.length;
+        const selected = filteredTips[randomIndex];
         setCurrentTipState(selected);
         lastSelectedTipRef.current = selected;
         lastTipChangeTimeRef.current = now;
