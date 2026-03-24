@@ -21,13 +21,13 @@ import {
   AuthType,
   ToolConfirmationOutcome,
   StreamEventType,
-  isWithinRoot,
   ReadManyFilesTool,
   type GeminiChat,
   type Config,
   type MessageBus,
   LlmRole,
   type GitService,
+  processSingleFileContent,
 } from '@google/gemini-cli-core';
 import {
   SettingScope,
@@ -111,7 +111,6 @@ vi.mock(
         }),
       })),
       logToolCall: vi.fn(),
-      isWithinRoot: vi.fn().mockReturnValue(true),
       LlmRole: {
         MAIN: 'main',
         SUBAGENT: 'subagent',
@@ -134,6 +133,7 @@ vi.mock(
         Cancelled: 'cancelled',
         AwaitingApproval: 'awaiting_approval',
       },
+      processSingleFileContent: vi.fn(),
     };
   },
 );
@@ -177,6 +177,10 @@ describe('GeminiAgent', () => {
       getHasAccessToPreviewModel: vi.fn().mockReturnValue(false),
       getCheckpointingEnabled: vi.fn().mockReturnValue(false),
       getDisableAlwaysAllow: vi.fn().mockReturnValue(false),
+      validatePathAccess: vi.fn().mockReturnValue(null),
+      getWorkspaceContext: vi.fn().mockReturnValue({
+        addReadOnlyPath: vi.fn(),
+      }),
       get config() {
         return this;
       },
@@ -648,6 +652,7 @@ describe('Session', () => {
         shouldIgnoreFile: vi.fn().mockReturnValue(false),
       }),
       getFileFilteringOptions: vi.fn().mockReturnValue({}),
+      getFileSystemService: vi.fn().mockReturnValue({}),
       getTargetDir: vi.fn().mockReturnValue('/tmp'),
       getEnableRecursiveFileSearch: vi.fn().mockReturnValue(false),
       getDebugMode: vi.fn().mockReturnValue(false),
@@ -657,6 +662,10 @@ describe('Session', () => {
       isPlanEnabled: vi.fn().mockReturnValue(true),
       getCheckpointingEnabled: vi.fn().mockReturnValue(false),
       getGitService: vi.fn().mockResolvedValue({} as GitService),
+      validatePathAccess: vi.fn().mockReturnValue(null),
+      getWorkspaceContext: vi.fn().mockReturnValue({
+        addReadOnlyPath: vi.fn(),
+      }),
       waitForMcpInit: vi.fn(),
       getDisableAlwaysAllow: vi.fn().mockReturnValue(false),
       get config() {
@@ -1356,7 +1365,6 @@ describe('Session', () => {
     (fs.stat as unknown as Mock).mockResolvedValue({
       isDirectory: () => false,
     });
-    (isWithinRoot as unknown as Mock).mockReturnValue(true);
 
     const stream = createMockStream([
       {
@@ -1414,7 +1422,6 @@ describe('Session', () => {
     (fs.stat as unknown as Mock).mockResolvedValue({
       isDirectory: () => false,
     });
-    (isWithinRoot as unknown as Mock).mockReturnValue(true);
 
     const MockReadManyFilesTool = ReadManyFilesTool as unknown as Mock;
     MockReadManyFilesTool.mockImplementationOnce(() => ({
@@ -1465,6 +1472,105 @@ describe('Session', () => {
           kind: 'read',
         }),
       }),
+    );
+  });
+
+  it('should handle @path validation error and bubble it to user', async () => {
+    (path.resolve as unknown as Mock).mockReturnValue('/tmp/disallowed.txt');
+    mockConfig.validatePathAccess.mockReturnValue('Path is outside workspace');
+
+    // Force fs.stat to fail to skip direct reading and triggers the warning
+    (fs.stat as unknown as Mock).mockRejectedValue(new Error('File not found'));
+
+    const stream = createMockStream([
+      {
+        type: StreamEventType.CHUNK,
+        value: { candidates: [] },
+      },
+    ]);
+    mockChat.sendMessageStream.mockResolvedValue(stream);
+
+    await session.prompt({
+      sessionId: 'session-1',
+      prompt: [
+        {
+          type: 'resource_link',
+          uri: 'file://disallowed.txt',
+          mimeType: 'text/plain',
+          name: 'disallowed.txt',
+        },
+      ],
+    });
+
+    // Verify warning sent via sendUpdate
+    expect(mockConnection.sessionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          sessionUpdate: 'agent_thought_chunk',
+          content: expect.objectContaining({
+            text: expect.stringContaining(
+              'Warning: skipping access to `disallowed.txt`. Reason: Path is outside workspace',
+            ),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('should read absolute file directly if outside workspace', async () => {
+    const testFilePath = '/tmp/custom.txt';
+    (path.resolve as unknown as Mock).mockReturnValue(testFilePath);
+    mockConfig.validatePathAccess.mockReturnValue('Path is outside workspace');
+
+    const mockStats = {
+      isFile: () => true,
+      isDirectory: () => false,
+    };
+    (fs.stat as unknown as Mock).mockResolvedValue(mockStats);
+    (processSingleFileContent as unknown as Mock).mockResolvedValue({
+      llmContent: 'Absolute File Content',
+    });
+
+    const stream = createMockStream([
+      {
+        type: StreamEventType.CHUNK,
+        value: { candidates: [] },
+      },
+    ]);
+    mockChat.sendMessageStream.mockResolvedValue(stream);
+
+    await session.prompt({
+      sessionId: 'session-1',
+      prompt: [
+        {
+          type: 'resource_link',
+          uri: `file://${testFilePath}`,
+          mimeType: 'text/plain',
+          name: 'custom.txt',
+        },
+      ],
+    });
+
+    expect(processSingleFileContent).toHaveBeenCalledWith(
+      testFilePath,
+      expect.anything(),
+      expect.anything(),
+    );
+
+    // Verify content appended to sendMessageStream parts
+    expect(mockChat.sendMessageStream).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: expect.stringContaining('Content from @/tmp/custom.txt:'),
+        }),
+        expect.objectContaining({
+          text: 'Absolute File Content',
+        }),
+      ]),
+      expect.anything(),
+      expect.any(AbortSignal),
+      LlmRole.MAIN,
     );
   });
 
@@ -1666,7 +1772,6 @@ describe('Session', () => {
     (fs.stat as unknown as Mock).mockResolvedValue({
       isDirectory: () => true,
     });
-    (isWithinRoot as unknown as Mock).mockReturnValue(true);
 
     const stream = createMockStream([
       {
