@@ -48,7 +48,10 @@ You are a senior co-author assistant. Your goal is to ensure this PR passes CI o
 - **Diff Verification**: After reverting, run `git diff origin/main...HEAD` on the specific reverted files to ensure their diff is completely empty.
 
 ### 7. Final Submission
-- **Commit Strategy**: Squash the main feature and ALL previous code review fixes into a single Conventional Commit (e.g., `feat(ui): ...`). However, keep only the **very last** round of code review comments as separate commits. This ensures reviewers can quickly review the latest changes (30 seconds vs. 10 minutes) without being burdened by the entire PR history.
+- **Commit Strategy**: Maintain a **Two-Tier** commit history to optimize for reviewer speed (30s vs 10m):
+  1.  **Tier 1 (Base)**: A single squashed Conventional Commit (e.g., `feat(ui): ...`) containing the core feature and all *previously addressed* review cycles.
+  2.  **Tier 2 (Latest)**: Separate, granular commits addressing only the **very last** round of reviewer feedback.
+  - **Action**: Use `git rebase -i` or `git reset --soft` to squash all older review-fix commits into the Tier 1 base. Ensure only the commits from the current (latest) review cycle remain as separate entries.
 - **Push**: `git push origin HEAD --force-with-lease`.
 - **Link**: Provide the GitHub PR link.
 
