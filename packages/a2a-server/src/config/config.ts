@@ -25,7 +25,6 @@ import {
   ExperimentFlags,
   isHeadlessMode,
   FatalAuthenticationError,
-  isCloudShell,
   PolicyDecision,
   PRIORITY_YOLO_ALLOW_ALL,
   type TelemetryTarget,
@@ -282,51 +281,49 @@ async function refreshAuthentication(
     const isHeadless = isHeadlessMode();
     const shouldSkipOauth = isHeadless || useComputeAdc;
 
-    if (shouldSkipOauth) {
-      if (isCloudShell() || useComputeAdc) {
-        logger.info(
-          `[${logPrefix}] Skipping LOGIN_WITH_GOOGLE due to ${isHeadless ? 'headless mode' : 'GEMINI_CLI_USE_COMPUTE_ADC'}. Attempting COMPUTE_ADC.`,
-        );
-        try {
-          await config.refreshAuth(AuthType.COMPUTE_ADC);
-          logger.info(`[${logPrefix}] COMPUTE_ADC successful.`);
-        } catch (adcError) {
-          const adcMessage =
-            adcError instanceof Error ? adcError.message : String(adcError);
-          throw new FatalAuthenticationError(
-            `COMPUTE_ADC failed: ${adcMessage}. (Skipped LOGIN_WITH_GOOGLE due to ${isHeadless ? 'headless mode' : 'GEMINI_CLI_USE_COMPUTE_ADC'})`,
-          );
-        }
-      } else {
+    let isAdcSuccessful = false;
+    let initialAdcError: unknown;
+
+    logger.info(`[${logPrefix}] Attempting COMPUTE_ADC first.`);
+    try {
+      await config.refreshAuth(AuthType.COMPUTE_ADC);
+      logger.info(`[${logPrefix}] COMPUTE_ADC successful.`);
+      isAdcSuccessful = true;
+    } catch (adcError) {
+      initialAdcError = adcError;
+      logger.info(
+        `[${logPrefix}] COMPUTE_ADC failed or not available: ${
+          adcError instanceof Error ? adcError.message : String(adcError)
+        }`,
+      );
+    }
+
+    if (!isAdcSuccessful) {
+      if (shouldSkipOauth) {
+        const adcMessage =
+          initialAdcError instanceof Error
+            ? initialAdcError.message
+            : String(initialAdcError);
         throw new FatalAuthenticationError(
-          `Interactive terminal required for LOGIN_WITH_GOOGLE. Run in an interactive terminal or set GEMINI_CLI_USE_COMPUTE_ADC=true to use Application Default Credentials.`,
+          `Interactive terminal required for LOGIN_WITH_GOOGLE. Run in an interactive terminal or set GEMINI_CLI_USE_COMPUTE_ADC=true to use Application Default Credentials. (COMPUTE_ADC also failed: ${adcMessage})`,
         );
       }
-    } else {
+
+      logger.info(
+        `[${logPrefix}] COMPUTE_ADC failed, falling back to LOGIN_WITH_GOOGLE.`,
+      );
       try {
         await config.refreshAuth(AuthType.LOGIN_WITH_GOOGLE);
       } catch (e) {
-        if (
-          e instanceof FatalAuthenticationError &&
-          (isCloudShell() || useComputeAdc)
-        ) {
-          logger.warn(
-            `[${logPrefix}] LOGIN_WITH_GOOGLE failed. Attempting COMPUTE_ADC fallback.`,
+        if (e instanceof FatalAuthenticationError) {
+          const originalMessage = e instanceof Error ? e.message : String(e);
+          const adcMessage =
+            initialAdcError instanceof Error
+              ? initialAdcError.message
+              : String(initialAdcError);
+          throw new FatalAuthenticationError(
+            `${originalMessage}. The initial COMPUTE_ADC attempt also failed: ${adcMessage}`,
           );
-          try {
-            await config.refreshAuth(AuthType.COMPUTE_ADC);
-            logger.info(`[${logPrefix}] COMPUTE_ADC fallback successful.`);
-          } catch (adcError) {
-            logger.error(
-              `[${logPrefix}] COMPUTE_ADC fallback failed: ${adcError}`,
-            );
-            const originalMessage = e instanceof Error ? e.message : String(e);
-            const adcMessage =
-              adcError instanceof Error ? adcError.message : String(adcError);
-            throw new FatalAuthenticationError(
-              `${originalMessage}. Fallback to COMPUTE_ADC also failed: ${adcMessage}`,
-            );
-          }
         } else {
           throw e;
         }
