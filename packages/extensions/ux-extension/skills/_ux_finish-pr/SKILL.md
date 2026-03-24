@@ -53,6 +53,6 @@ You are a senior co-author assistant. Your goal is to ensure this PR passes CI o
   2.  **Tier 2 (Latest)**: Separate, granular commits addressing only the **very last** round of reviewer feedback.
   - **Action**: Use `git rebase -i` or `git reset --soft` to squash all older review-fix commits into the Tier 1 base. Ensure only the commits from the current (latest) review cycle remain as separate entries.
 - **Push**: `git push origin HEAD --force-with-lease`.
-- **Link**: Provide the GitHub PR link.
+- **Link**: You MUST provide the full, clickable GitHub PR link (e.g., `https://github.com/google-gemini/gemini-cli/pull/23487`) as the final output of this skill. This allows the user to immediately verify the update.
 
 **Note**: If any step fails, do NOT claim completion. Fix the issue and restart from Step 1.
